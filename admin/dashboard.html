@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-TRACK Admin Dashboard</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="header-content">
+                <h1><i class="fas fa-bus"></i> V-TRACK Admin Dashboard</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="showMessages()">
+                        <i class="fas fa-envelope"></i> Messages
+                    </button>
+                    <button class="btn btn-secondary" onclick="testPendingDrivers()">
+                        <i class="fas fa-bug"></i> Test DB
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card active" id="total-buses-card">
+                <i class="fas fa-bus stat-icon"></i>
+                <span class="stat-number" id="total-buses">0</span>
+                <span class="stat-label">Total Buses</span>
+            </div>
+            <div class="stat-card active" id="active-buses-card">
+                <i class="fas fa-check-circle stat-icon"></i>
+                <span class="stat-number" id="active-buses">0</span>
+                <span class="stat-label">Active Buses</span>
+            </div>
+            <div class="stat-card inactive" id="inactive-buses-card">
+                <i class="fas fa-pause-circle stat-icon"></i>
+                <span class="stat-number" id="inactive-buses">0</span>
+                <span class="stat-label">Inactive Buses</span>
+            </div>
+            <div class="stat-card warning" id="pending-requests-card">
+                <i class="fas fa-clock stat-icon"></i>
+                <span class="stat-number" id="pending-requests">0</span>
+                <span class="stat-label">Pending Requests</span>
+            </div>
+        </div>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Bus Fleet Overview -->
+            <div class="dashboard-card full-width">
+                <div class="dashboard-card-header">
+                    <h2 class="dashboard-card-title">Bus Fleet Overview</h2>
+                    <div class="dashboard-card-actions">
+                        <button class="btn btn-primary" onclick="addNewBus()">
+                            <i class="fas fa-plus"></i> Add Bus
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshFleet()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="dashboard-card-content">
+                    <div id="busFleetContainer" class="bus-fleet-grid">
+                        <!-- Bus cards will be loaded here dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Feedback -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <h3 class="dashboard-card-title">Recent Feedback</h3>
+                    <button class="btn btn-secondary" onclick="viewAllFeedback()">
+                        <i class="fas fa-eye"></i> View All
+                    </button>
+                </div>
+                <div class="dashboard-card-content">
+                    <div id="recentFeedback" class="feedback-list">
+                        <!-- Feedback items will be loaded here dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Driver Requests -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <h3 class="dashboard-card-title">Pending Driver Requests</h3>
+                </div>
+                <div class="dashboard-card-content">
+                    <div id="pendingRequestsContainer" class="requests-list">
+                        <!-- Pending requests will be loaded here dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bus Details Section -->
+        <div class="dashboard-grid">
+            <!-- Speed Analysis -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <h3 class="dashboard-card-title">Speed Analysis</h3>
+                </div>
+                <div class="dashboard-card-content">
+                    <div id="speedAnalysis">
+                        <!-- Speed chart will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Driver Performance -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <h3 class="dashboard-card-title">Driver Performance</h3>
+                </div>
+                <div class="dashboard-card-content">
+                    <div id="driverPerformance">
+                        <!-- Driver stats will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bus Status Section -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h3 class="dashboard-card-title">Selected Bus Status</h3>
+            </div>
+            <div class="dashboard-card-content">
+                <div id="busStatus">
+                    <!-- Bus status will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="js/dashboard.js"></script>
+    
+    <script>
+        // Additional initialization
+        function refreshDashboard() {
+            loadBusFleetOverview();
+            loadPendingRequests();
+            updateStatistics();
+            showNotification('Dashboard refreshed successfully');
+        }
+
+        function updateStatistics() {
+            // Update statistics from Firebase
+            database.ref('busDetails').once('value')
+                .then(snapshot => {
+                    const buses = snapshot.val() || {};
+                    const totalBuses = Object.keys(buses).length;
+                    const activeBuses = Object.values(buses).filter(bus => bus.status === 'active').length;
+                    const inactiveBuses = totalBuses - activeBuses;
+
+                    document.getElementById('total-buses').textContent = totalBuses;
+                    document.getElementById('active-buses').textContent = activeBuses;
+                    document.getElementById('inactive-buses').textContent = inactiveBuses;
+                });
+
+            // Update pending requests count
+            database.ref('pendingDrivers').once('value')
+                .then(snapshot => {
+                    const pendingCount = snapshot.numChildren();
+                    document.getElementById('pending-requests').textContent = pendingCount;
+                });
+        }
+
+        // Initialize dashboard on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatistics();
+            // Set up periodic updates
+            setInterval(updateStatistics, 30000); // Update every 30 seconds
+        });
+    </script>
+</body>
+</html> 
